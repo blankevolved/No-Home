@@ -2,59 +2,75 @@ import pickle
 import os
 from clear import clear
 import logging
+from typing import Any
+from colorama import Fore
+
+L_RED: str = Fore.LIGHTRED_EX
+L_GREEN: str = Fore.LIGHTGREEN_EX
+L_YELLOW: str = Fore.LIGHTYELLOW_EX
+L_CYAN: str = Fore.LIGHTCYAN_EX
+CYAN: str = Fore.CYAN
+RESET: str = Fore.RESET
+
+VERSION: float = 1.0
+
+cups: dict = {}
+
+logging.basicConfig(level=logging.WARNING)
 
 
-VERSION = 1.0
-
-cups = {}
-
-
-def save(file_name: str, item: any):
+def save(file_name: str, item: Any) -> None:
     with open(f'save/{file_name}.pickle', 'wb') as f:
         pickle.dump(item, f)
         f.close()
 
 
-def load(file_name: str):
+def load(file_name: str) -> Any:
     with open(f'save/{file_name}.pickle', 'rb') as f:
         return pickle.load(f)
 
 
-def add_spaces(num: int):
+def add_spaces(num: int) -> str:
     return ' ' * num
 
 
-def cup_collection():
+def cup_collection() -> str:
     clear()
-    cup_list = []
+    return_val = 'Collection:\n\n'
     for c in cups:
         cup = cups[c]
-        print(f'{cup.display_name}:')
-        print(f'\tOwned: [{cup.owned}]\tPower: [{cup.power}]')
-        cup_list.append(cup)
+        return_val += f'{cup.display_name}:\n'
+        if cup.owned:
+            return_val += f'\tOwned: [{L_GREEN}{cup.owned}{RESET}]\tPower: [{L_YELLOW}{cup.power}{RESET}]\tPrice: [{CYAN}{cup.price}{RESET}]\n'
+        else:
+            return_val += f'\tOwned: [{L_RED}{cup.owned}{RESET}]\tPower: [{L_YELLOW}{cup.power}{RESET}]\tPrice: [{CYAN}{cup.price}{RESET}]\n'
+    return return_val
 
-    input('>> ')
+
+def cup_shop() -> str:
+    return ''
 
 
 class Cup:
-    def __init__(self, name: str, power: int | float):
+    def __init__(self, name: str, power: int | float, price: int | float) -> None:
         self.name = name
         self.display_name = name.capitalize()
         self.power = power
         self.owned = False
+        self.price = price
         cups[name] = self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.display_name
 
 
 class Player:
-    def __init__(self, cup: Cup):
+    def __init__(self, cup: Cup) -> None:
         self.cup = cup
         self.power = 1 + self.cup.power
         self.coins = 0
 
-    def change_cup(self, cup: Cup):
+    def change_cup(self, cup: Cup) -> str:
         if cup.owned:
             self.cup = cup
             self.power = 1 + self.cup.power
@@ -62,20 +78,32 @@ class Player:
         else:
             return f'You dont own {cup}'
 
-    def beg(self):
+    def buy_cup(self, cup: Cup) -> str:
+        if cup.owned:
+            return f'You already own {cup}'
+        if self.coins < cup.price:
+            return f'You dont have enough money to buy {cup}'
+        if self.coins >= cup.price:
+            self.coins -= cup.price
+            cup.owned = True
+            if self.cup.power <= cup.power:
+                self.change_cup(cup)
+            return f'Bought {cup}'
+
+    def beg(self) -> None:
         self.coins = self.coins + self.power
 
-    def show_stats(self):
-        return f"Coins: [{self.coins}]{add_spaces(10)} Power: [{self.power}]{add_spaces(10)} Cup: [{self.cup}]{add_spaces(10)}"
+    def show_stats(self) -> str:
+        return f"Coins: [{L_YELLOW}{self.coins}{RESET}]{add_spaces(10)} Power: [{L_YELLOW}{self.power}{RESET}]{add_spaces(10)} Cup: [{L_YELLOW}{self.cup}{RESET}]{add_spaces(10)}"
 
-    def change_cup_menu(self):
+    def change_cup_menu(self) -> None:
         clear()
         cup_list = []
         print('Select a cup')
         for index, c in enumerate(cups):
             cup = cups[c]
             if cup.owned:
-                print(f'[{index}] {cup.display_name}')
+                print(f'[{L_YELLOW}{index}{RESET}] {cup.display_name}')
                 cup_list.append(cup)
 
         cup_inp = input('>> ')
@@ -89,28 +117,30 @@ class Player:
             print('Please pick a integer')
 
 
-cup1 = Cup('cup', 1)
+cup1 = Cup('cup', 1, 0)
 cup1.owned = True
-cup2 = Cup('cup 2', 2)
+cup2 = Cup('cup 2', 2, 20)
 
 player = Player(cup1)
 
+load_list: list[str] = ['cups', 'player']
+
 if os.path.exists('save'):
-    try:
-        load_cups = load('cups')
-        cup1 = load_cups['cup']
-        cup2 = load_cups['cup 2']
-        player = load('player')
-    except FileNotFoundError:
-        logging.warning('one or more files could not be loaded')
+    for lo in load_list:
+        try:
+            loaded_object = load(lo)
+        except FileNotFoundError as e:
+            logging.warning(f'[{e.filename}] could not be loaded')
+        except pickle.UnpicklingError as e:
+            logging.warning(f'{e}, one of the .pickle files is not formatted properly')
 else:
     os.mkdir('save')
 
-options = """
+options = f"""
 Options:
-[1] Beg for money
-[2] Change Cup
-[3] Collection
+[{L_YELLOW}1{RESET}] Beg for money
+[{L_YELLOW}2{RESET}] Change Cup
+[{L_YELLOW}3{RESET}] Collection
 """
 
 
@@ -119,11 +149,11 @@ def save_all():
     save('player', player)
 
 
+logging.debug('Running..')
+
 while __name__ == '__main__':
 
     save_all()
-
-    clear()
 
     print(player.show_stats())
 
@@ -136,4 +166,7 @@ while __name__ == '__main__':
     elif inp == 'change cup' or inp == '2':
         player.change_cup_menu()
     elif inp == 'collection' or inp == '3':
-        cup_collection()
+        print(cup_collection())
+        input('>> ')
+
+    clear()
